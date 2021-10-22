@@ -169,6 +169,9 @@ function reverseArgsUsage(){
 
 // Partially apply right most arguments.
 // The remaining arguments should also be specified right to left
+// Note that partial right only guarantees that the presetArgs will be
+// last arguments passed to the function, not that they will map to the 
+// last parameters.
 function partialRight1(fn, ...presetArgs) {
     // We provide the first batch of arguments to apply
     // Outer reverseArgs is to reverse arguments order for laterArgs
@@ -315,4 +318,199 @@ function looseCurryUsage() {
     const res2 = looseCurryArrow(f1)(2, 3)(1)(4, 8, 0, 5)
     console.log(res2)
 }
-looseCurryUsage()
+// looseCurryUsage()
+
+// No Curry for Me, Please
+// Uncurry a curried function. eg f(1)(2)(3) to g(1,2,3)
+// Produces a function that accepts multiple arguments that can
+// be passed in all at once.
+// Note. If you pass in less arguments that is expected by the 
+// curried function you'll get a partially curried function as the result.
+function uncurry(fn) {
+    return function uncurried(...args) {
+        let ret = fn 
+        // We call the curried function passing in our arguments one at a time
+        for(let arg of args) {
+            ret = ret(arg)
+        }
+        return ret;
+    }
+}
+
+const uncurryArrow 
+    = fn =>
+        (...args) => {
+            let ret = fn 
+            // We call the curried function passing in our arguments one at a time
+            for(let arg of args) {
+                ret = ret(arg)
+            }
+            return ret;
+        }
+
+function uncurryUsage() {
+    function sum(...nums) {
+        let sum = 0; 
+        for (let num of nums) {
+            sum += num
+        }
+        return sum;
+    }
+    let curriedSum = curry(sum, 4)
+    let uncurriedSum = uncurry(curriedSum)
+    console.log(uncurriedSum(1,2,3,4))
+    // Pass in less arguments
+    let uncurried2 = uncurry(curriedSum)
+    const un3 = uncurried2(1, 2)
+    console.log(un3) // partially curried function
+    console.log(un3(3)(4))
+
+}   
+// uncurryUsage()     
+
+// Order Matters
+// Use named arguments when providing arguments for partial function
+function partialProps(fn, presetArgsObj) {
+    return function partiallyAppliedProps(laterArgsObj) {
+        return fn(Object.assign({}, presetArgsObj, laterArgsObj))
+    }
+}
+
+// arity determines how many arguments we are to pass in 
+// If they dont provide arity, we assume the argument object fn
+// expects will have only one property.
+function curryProps(fn, arity = 1) {
+    return (function nextCurried(prevArgObj) {
+        return function curried(nextArgObj = {}) {
+            // We take the first property only. 
+            let [key] = Object.keys(nextArgObj)
+            const argObj = Object.assign(
+                {}, prevArgObj, { [key]: nextArgObj[key] })
+
+               
+            if(Object.keys(argObj).length >= arity) {
+                return fn(argObj)
+            }
+            else {
+                return nextCurried(argObj)
+            }
+        }
+    })({})
+}
+
+function propsUsage() {
+    function f1({ x, y, z}) {
+        console.log(`x is ${x}, y is ${y}, z is ${ z }`)
+    }
+    let p1 = partialProps(f1, { x: 3, z: 1 })
+    p1({ y: 4 })
+
+    let c1 = curryProps(f1, 3)
+    let c2 = c1({ x: 2 })
+    let c3  = c2({ z: 3 })
+    c3({ y: 5 })
+}
+// propsUsage()
+
+function spreadArgProps(
+    fn,
+    propOrder =
+        fn.toString().replace(/^(?:(?:function.*\(([^]*?)\))|(?:([^\(\)]+?)\s*=>)|(?:\(([^]*?)\)\s*=>))[^]+$/, "$1$2$3" ).split( /\s*,\s*/ ).map( v => v.replace( /[=\s].*$/, "" ) )
+) {
+    return function spreadFn(argsObj){
+        console.log('prop order', propOrder)
+        return fn( ...propOrder.map( k => argsObj[k] ) );
+    };
+}
+
+// Not working properly. Buggy
+function spreadArgPropsUsage() {
+    function f1(a, b, c) { console.log(a + (b * c) ) }
+    const spread1 = spreadArgProps(f1)
+    spread1({ c: 3, a: 4, b: 2 })
+}
+
+// spreadArgPropsUsage()
+
+// No points.
+function double(v) { return v * 2 }
+
+// mapper function unnecessary. We can simply with point-free style
+// The point v maps to the argument in double()
+let k = [1,2,3,4].map(function mapper(v) { return double(v) })
+// console.log(k)
+
+// point-free style / tacit programming
+let g = [1,2,3].map(double)
+// console.log(g)
+
+// Negation helper
+// Sometimes called complement
+// Returns a function that if invoked will return the negation
+// of the predicate when called.
+const not =
+    predicate =>
+        (...args) =>
+            !predicate(...args)
+
+function notUsage() {
+    const printIf = (predicate, msg) => { 
+        if(predicate(msg)) {
+            console.log(msg)
+        }
+    }
+    const isShortEnough = str => str.length <= 5
+
+    printIf(isShortEnough, 'Cowdung')
+    printIf(isShortEnough, 'ajax')
+
+    // is long enough
+    const isLongEnough = not(isShortEnough)
+
+    printIf(isLongEnough, 'ab')
+    printIf(isLongEnough, 'Thomason')
+
+
+}
+
+// notUsage()         
+
+// When
+// We can use a when utility to express the if conditional part
+const when =
+    (predicate, fn) =>
+        (...args) => 
+            predicate(...args) ? fn(...args) : undefined
+
+
+function whenUsage() {
+    // convenience to avoid potential binding issue with trying
+    // to use console.log as a function
+    const output = txt => console.log(txt)
+
+    // create a function that expects two predicate and txt arguments together, 
+    // ie. printf(predicate, str)
+    const printIf = uncurry(partialRight(when, output))
+
+    let msg = 'Hello';
+    let msg2 = 'Green Basket'
+
+    const isLongEnough = (str, len) => str.length > len
+    const isShortEnough = (str, len) => not(isLongEnough)(str, len)
+
+    // These expect a string argument
+    const isLong5 = partialRight(isLongEnough, 5)
+    const isShort5 = not(isLong5)
+
+    printIf(isLong5, msg)
+    printIf(isLong5, msg2)
+
+    console.log('**is short enough **')
+    printIf(partialRight(isShortEnough, 3), msg)
+    printIf(partialRight(isShortEnough, 3), 'Me')
+
+    when(constant(5 > 3), () => console.log('Greater'))()
+
+}
+
+whenUsage()
