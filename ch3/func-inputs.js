@@ -176,6 +176,8 @@ function partialRight1(fn, ...presetArgs) {
     // We provide the first batch of arguments to apply
     // Outer reverseArgs is to reverse arguments order for laterArgs
     return reverseArgs(
+        // First reverse arguments of fn so it accepts presetArgs first as right most args
+
         partial(reverseArgs(fn), ...presetArgs.reverse())
     )
 }
@@ -513,4 +515,9 @@ function whenUsage() {
 
 }
 
-whenUsage()
+// whenUsage()
+
+module.exports = {
+    not, when, partial, partialRight, curry, uncurry, constant,
+    identity, spreadArgs, gatherArgs, reverseArgs
+}
